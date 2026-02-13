@@ -2,6 +2,7 @@ from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 
 from openhouse.dataloader.data_loader_split import DataLoaderSplit
+from openhouse.dataloader.openhouse_table_catalog import TableCatalog
 from openhouse.dataloader.table_identifier import TableIdentifier
 from openhouse.dataloader.table_transformer import TableTransformer
 from openhouse.dataloader.udf_registry import UDFRegistry
@@ -30,6 +31,7 @@ class OpenHouseDataLoader:
 
     def __init__(
         self,
+        catalog: TableCatalog,
         database: str,
         table: str,
         branch: str | None = None,
@@ -38,12 +40,14 @@ class OpenHouseDataLoader:
     ):
         """
         Args:
+            catalog: Catalog for loading table metadata
             database: Database name
             table: Table name
             branch: Optional branch name
             columns: Column names to load, or None to load all columns
             context: Data loader context
         """
+        self._catalog = catalog
         self._table = TableIdentifier(database, table, branch)
         self._columns = columns
         self._context = context or DataLoaderContext()

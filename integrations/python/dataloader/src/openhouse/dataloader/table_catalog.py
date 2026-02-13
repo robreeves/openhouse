@@ -124,5 +124,8 @@ class OpenHouseCatalog(Catalog):
     def table_exists(self, *_: Any, **__: Any) -> bool:
         raise NotImplementedError
 
+    def namespace_exists(self, *_: Any, **__: Any) -> bool:
+        raise NotImplementedError
+
     def view_exists(self, *_: Any, **__: Any) -> bool:
         raise NotImplementedError

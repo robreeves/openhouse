@@ -436,43 +436,66 @@ class TestDataFusionFilterExecution:
         ctx.register_record_batches("t", [[batch]])
         return ctx
 
-    def _query(self, ctx, where: str) -> int:
-        return len(ctx.sql(f'SELECT * FROM "t" WHERE {where}').collect()[0])
+    def _query(self, ctx, where: str):
+        batches = ctx.sql(f'SELECT * FROM "t" WHERE {where}').collect()
+        import pyarrow as pa
+
+        return pa.Table.from_batches(batches)
 
     def test_datetime_filter(self, ctx):
         where = _to_datafusion_sql(col("ts") >= datetime(2026, 4, 27, tzinfo=UTC))
-        assert self._query(ctx, where) == 2
+        table = self._query(ctx, where)
+        assert table.num_rows == 2
+        ts_values = [v.as_py() for v in table.column("ts")]
+        assert ts_values == [datetime(2026, 4, 27, tzinfo=UTC), datetime(2026, 4, 29, tzinfo=UTC)]
 
     def test_datetime_less_than(self, ctx):
         where = _to_datafusion_sql(col("ts") < datetime(2026, 4, 27, tzinfo=UTC))
-        assert self._query(ctx, where) == 1
+        table = self._query(ctx, where)
+        assert table.num_rows == 1
+        assert table.column("ts")[0].as_py() == datetime(2026, 4, 25, tzinfo=UTC)
 
     def test_date_filter(self, ctx):
         where = _to_datafusion_sql(col("dt") >= date(2026, 4, 27))
-        assert self._query(ctx, where) == 2
+        table = self._query(ctx, where)
+        assert table.num_rows == 2
+        dt_values = [v.as_py() for v in table.column("dt")]
+        assert dt_values == [date(2026, 4, 27), date(2026, 4, 29)]
 
     def test_time_filter(self, ctx):
         where = _to_datafusion_sql(col("t") == time(14, 30, 0))
-        assert self._query(ctx, where) == 1
+        table = self._query(ctx, where)
+        assert table.num_rows == 1
+        assert table.column("t")[0].as_py() == time(14, 30, 0)
 
     def test_decimal_filter(self, ctx):
         where = _to_datafusion_sql(col("price") > Decimal("10.00"))
-        assert self._query(ctx, where) == 2
+        table = self._query(ctx, where)
+        assert table.num_rows == 2
+        price_values = [v.as_py() for v in table.column("price")]
+        assert price_values == [Decimal("49.99"), Decimal("99.99")]
 
     def test_uuid_filter(self, ctx):
         where = _to_datafusion_sql(col("id") == UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
-        assert self._query(ctx, where) == 1
+        table = self._query(ctx, where)
+        assert table.num_rows == 1
+        assert table.column("id")[0].as_py() == "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"
 
     def test_datetime_between_filter(self, ctx):
         where = _to_datafusion_sql(
             col("ts").between(datetime(2026, 4, 26, tzinfo=UTC), datetime(2026, 4, 28, tzinfo=UTC))
         )
-        assert self._query(ctx, where) == 1
+        table = self._query(ctx, where)
+        assert table.num_rows == 1
+        assert table.column("ts")[0].as_py() == datetime(2026, 4, 27, tzinfo=UTC)
 
     def test_compound_filter(self, ctx):
         f = (col("ts") >= datetime(2026, 4, 27, tzinfo=UTC)) & (col("price") > Decimal("50.00"))
         where = _to_datafusion_sql(f)
-        assert self._query(ctx, where) == 1
+        table = self._query(ctx, where)
+        assert table.num_rows == 1
+        assert table.column("ts")[0].as_py() == datetime(2026, 4, 29, tzinfo=UTC)
+        assert table.column("price")[0].as_py() == Decimal("99.99")
 
 
 class TestPyIcebergUnsupportedType:

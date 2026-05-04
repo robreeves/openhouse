@@ -470,6 +470,40 @@ def test_split_batch_size_preserves_data(tmp_path):
     assert sorted(result.column("id").to_pylist()) == list(range(25))
 
 
+def test_split_batch_size_honored_with_transform(tmp_path):
+    """When batch_size > 8192 with a transform, DataFusion must not fragment batches.
+
+    DataFusion defaults to batch_size=8192. Without propagating the user's
+    batch_size to the SessionConfig, a 10_000-row input batch would be split
+    into [8192, 1808] by the transform step.
+    """
+    num_rows = 10_000
+    table = pa.table(
+        {
+            "id": pa.array(list(range(num_rows)), type=pa.int64()),
+            "name": pa.array([f"n{i}" for i in range(num_rows)], type=pa.string()),
+        }
+    )
+    identity_sql = f"SELECT id, name FROM {to_sql_identifier(_TABLE_ID)}"
+
+    split = _create_test_split(
+        tmp_path,
+        table,
+        FileFormat.PARQUET,
+        _TRANSFORM_SCHEMA,
+        transform_sql=identity_sql,
+        table_id=_TABLE_ID,
+        batch_size=num_rows,
+    )
+    batches = list(split)
+
+    assert sum(b.num_rows for b in batches) == num_rows
+    for batch in batches:
+        assert batch.num_rows <= num_rows
+    # The key assertion: DataFusion should not fragment into sub-8192 chunks
+    assert len(batches) == 1, f"Expected 1 batch of {num_rows} rows, got {[b.num_rows for b in batches]}"
+
+
 # --- multi-file split tests ---
 
 

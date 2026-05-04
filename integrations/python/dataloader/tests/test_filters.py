@@ -1,4 +1,6 @@
-from datetime import UTC, date, datetime
+from datetime import UTC, date, datetime, time
+from decimal import Decimal
+from uuid import UUID
 
 import pytest
 from pyiceberg import expressions as ice
@@ -349,7 +351,7 @@ class TestNamespacedImport:
         assert isinstance(f.right, EqualTo)
 
 
-class TestDataFusionDatetimeConversion:
+class TestDataFusionLiteralConversion:
     def test_datetime_greater_than_or_equal(self):
         dt = datetime(2026, 4, 27, tzinfo=UTC)
         result = _to_datafusion_sql(col("datepartition") >= dt)
@@ -379,6 +381,25 @@ class TestDataFusionDatetimeConversion:
         result = _to_datafusion_sql(f)
         assert "CAST('2026-04-27 00:00:00' AS TIMESTAMP)" in result
         assert "\"status\" = 'active'" in result
+
+    def test_time_equal(self):
+        t = time(14, 30, 0)
+        result = _to_datafusion_sql(col("event_time") == t)
+        assert result == "\"event_time\" = CAST('14:30:00' AS TIME)"
+
+    def test_decimal_greater_than(self):
+        d = Decimal("99.95")
+        result = _to_datafusion_sql(col("price") > d)
+        assert result == '"price" > 99.95'
+
+    def test_decimal_between(self):
+        result = _to_datafusion_sql(col("price").between(Decimal("10.00"), Decimal("50.00")))
+        assert result == '"price" BETWEEN 10.00 AND 50.00'
+
+    def test_uuid_equal(self):
+        u = UUID("12345678-1234-5678-1234-567812345678")
+        result = _to_datafusion_sql(col("id") == u)
+        assert result == "\"id\" = '12345678-1234-5678-1234-567812345678'"
 
 
 class TestPyIcebergUnsupportedType:

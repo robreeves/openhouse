@@ -499,10 +499,8 @@ def test_split_batch_size_honored_with_transform(tmp_path):
     )
     batches = list(split)
 
-    assert sum(b.num_rows for b in batches) == num_rows
-    for batch in batches:
-        assert batch.num_rows <= num_rows
-    assert len(batches) == 1, f"Expected 1 batch of {num_rows} rows, got {[b.num_rows for b in batches]}"
+    assert len(batches) == 1
+    assert batches[0].num_rows == num_rows
 
 
 # --- multi-file split tests ---

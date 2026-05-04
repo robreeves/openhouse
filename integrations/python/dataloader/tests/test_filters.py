@@ -402,6 +402,79 @@ class TestDataFusionLiteralConversion:
         assert result == "\"id\" = '12345678-1234-5678-1234-567812345678'"
 
 
+class TestDataFusionFilterExecution:
+    """Execute generated filter SQL against a real DataFusion SessionContext."""
+
+    @pytest.fixture()
+    def ctx(self):
+        import datafusion
+        import pyarrow as pa
+
+        ctx = datafusion.SessionContext()
+        batch = pa.record_batch(
+            {
+                "ts": pa.array(
+                    [
+                        datetime(2026, 4, 25, tzinfo=UTC),
+                        datetime(2026, 4, 27, tzinfo=UTC),
+                        datetime(2026, 4, 29, tzinfo=UTC),
+                    ],
+                    type=pa.timestamp("us", tz="UTC"),
+                ),
+                "dt": pa.array([date(2026, 4, 25), date(2026, 4, 27), date(2026, 4, 29)]),
+                "t": pa.array([time(10, 0, 0), time(14, 30, 0), time(20, 0, 0)], type=pa.time64("ns")),
+                "price": pa.array([Decimal("9.99"), Decimal("49.99"), Decimal("99.99")], type=pa.decimal128(10, 2)),
+                "id": pa.array(
+                    [
+                        "12345678-1234-5678-1234-567812345678",
+                        "aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee",
+                        "ffffffff-ffff-ffff-ffff-ffffffffffff",
+                    ]
+                ),
+            }
+        )
+        ctx.register_record_batches("t", [[batch]])
+        return ctx
+
+    def _query(self, ctx, where: str) -> int:
+        return len(ctx.sql(f'SELECT * FROM "t" WHERE {where}').collect()[0])
+
+    def test_datetime_filter(self, ctx):
+        where = _to_datafusion_sql(col("ts") >= datetime(2026, 4, 27, tzinfo=UTC))
+        assert self._query(ctx, where) == 2
+
+    def test_datetime_less_than(self, ctx):
+        where = _to_datafusion_sql(col("ts") < datetime(2026, 4, 27, tzinfo=UTC))
+        assert self._query(ctx, where) == 1
+
+    def test_date_filter(self, ctx):
+        where = _to_datafusion_sql(col("dt") >= date(2026, 4, 27))
+        assert self._query(ctx, where) == 2
+
+    def test_time_filter(self, ctx):
+        where = _to_datafusion_sql(col("t") == time(14, 30, 0))
+        assert self._query(ctx, where) == 1
+
+    def test_decimal_filter(self, ctx):
+        where = _to_datafusion_sql(col("price") > Decimal("10.00"))
+        assert self._query(ctx, where) == 2
+
+    def test_uuid_filter(self, ctx):
+        where = _to_datafusion_sql(col("id") == UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
+        assert self._query(ctx, where) == 1
+
+    def test_datetime_between_filter(self, ctx):
+        where = _to_datafusion_sql(
+            col("ts").between(datetime(2026, 4, 26, tzinfo=UTC), datetime(2026, 4, 28, tzinfo=UTC))
+        )
+        assert self._query(ctx, where) == 1
+
+    def test_compound_filter(self, ctx):
+        f = (col("ts") >= datetime(2026, 4, 27, tzinfo=UTC)) & (col("price") > Decimal("50.00"))
+        where = _to_datafusion_sql(f)
+        assert self._query(ctx, where) == 1
+
+
 class TestPyIcebergUnsupportedType:
     def test_raises_on_unknown_filter(self):
         class CustomFilter(Filter):

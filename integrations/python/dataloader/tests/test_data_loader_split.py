@@ -471,13 +471,15 @@ def test_split_batch_size_preserves_data(tmp_path):
 
 
 def test_split_batch_size_honored_with_transform(tmp_path):
-    """When batch_size > 8192 with a transform, DataFusion must not fragment batches.
+    """When batch_size exceeds DataFusion's default, transforms must not fragment batches.
 
-    DataFusion defaults to batch_size=8192. Without propagating the user's
-    batch_size to the SessionConfig, a 10_000-row input batch would be split
-    into [8192, 1808] by the transform step.
+    Without propagating the user's batch_size to the SessionConfig, DataFusion
+    splits output at its default boundary.
     """
-    num_rows = 10_000
+    from datafusion import Config
+
+    df_default = int(Config().get("datafusion.execution.batch_size"))
+    num_rows = df_default + 1000
     table = pa.table(
         {
             "id": pa.array(list(range(num_rows)), type=pa.int64()),
@@ -500,7 +502,6 @@ def test_split_batch_size_honored_with_transform(tmp_path):
     assert sum(b.num_rows for b in batches) == num_rows
     for batch in batches:
         assert batch.num_rows <= num_rows
-    # The key assertion: DataFusion should not fragment into sub-8192 chunks
     assert len(batches) == 1, f"Expected 1 batch of {num_rows} rows, got {[b.num_rows for b in batches]}"
 
 

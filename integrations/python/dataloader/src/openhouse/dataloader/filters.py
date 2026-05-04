@@ -3,6 +3,7 @@ from __future__ import annotations
 import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
+from datetime import date, datetime
 from typing import Any
 
 from pyiceberg import expressions as ice
@@ -327,6 +328,12 @@ def _literal_to_sql(value: object) -> str:
         return exp.Literal.string(value).sql()
     if isinstance(value, bool):
         return exp.Boolean(this=True).sql() if value else exp.Boolean(this=False).sql()
+    if isinstance(value, datetime):
+        lit = exp.Literal.string(value.strftime("%Y-%m-%d %H:%M:%S"))
+        return exp.Cast(this=lit, to=exp.DataType.build("TIMESTAMP")).sql()
+    if isinstance(value, date):
+        lit = exp.Literal.string(value.isoformat())
+        return exp.Cast(this=lit, to=exp.DataType.build("DATE")).sql()
     if isinstance(value, (int, float)):
         return exp.Literal.number(value).sql()
     raise TypeError(f"Unsupported literal type: {type(value).__name__}")

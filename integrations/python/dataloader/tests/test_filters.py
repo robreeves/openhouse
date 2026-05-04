@@ -1,3 +1,5 @@
+from datetime import UTC, date, datetime
+
 import pytest
 from pyiceberg import expressions as ice
 
@@ -97,6 +99,18 @@ class TestComparisonOperators:
         f = col("score") > 3.14
         assert isinstance(f, GreaterThan)
         assert f.value == 3.14
+
+    def test_comparison_with_datetime(self):
+        dt = datetime(2026, 4, 27, tzinfo=UTC)
+        f = col("datepartition") >= dt
+        assert isinstance(f, GreaterThanOrEqual)
+        assert f.value == dt
+
+    def test_comparison_with_date(self):
+        d = date(2026, 4, 27)
+        f = col("datepartition") >= d
+        assert isinstance(f, GreaterThanOrEqual)
+        assert f.value == d
 
 
 class TestNullAndNanChecks:
@@ -333,6 +347,38 @@ class TestNamespacedImport:
         assert isinstance(f, And)
         assert isinstance(f.left, GreaterThan)
         assert isinstance(f.right, EqualTo)
+
+
+class TestDataFusionDatetimeConversion:
+    def test_datetime_greater_than_or_equal(self):
+        dt = datetime(2026, 4, 27, tzinfo=UTC)
+        result = _to_datafusion_sql(col("datepartition") >= dt)
+        assert result == "\"datepartition\" >= CAST('2026-04-27 00:00:00' AS TIMESTAMP)"
+
+    def test_datetime_equal(self):
+        dt = datetime(2026, 4, 27, 12, 30, 45, tzinfo=UTC)
+        result = _to_datafusion_sql(col("ts") == dt)
+        assert result == "\"ts\" = CAST('2026-04-27 12:30:45' AS TIMESTAMP)"
+
+    def test_date_greater_than_or_equal(self):
+        d = date(2026, 4, 27)
+        result = _to_datafusion_sql(col("datepartition") >= d)
+        assert result == "\"datepartition\" >= CAST('2026-04-27' AS DATE)"
+
+    def test_datetime_between(self):
+        dt1 = datetime(2026, 4, 27, tzinfo=UTC)
+        dt2 = datetime(2026, 5, 1, tzinfo=UTC)
+        result = _to_datafusion_sql(col("ts").between(dt1, dt2))
+        assert result == (
+            "\"ts\" BETWEEN CAST('2026-04-27 00:00:00' AS TIMESTAMP) AND CAST('2026-05-01 00:00:00' AS TIMESTAMP)"
+        )
+
+    def test_datetime_in_compound_filter(self):
+        dt = datetime(2026, 4, 27, tzinfo=UTC)
+        f = (col("datepartition") >= dt) & (col("status") == "active")
+        result = _to_datafusion_sql(f)
+        assert "CAST('2026-04-27 00:00:00' AS TIMESTAMP)" in result
+        assert "\"status\" = 'active'" in result
 
 
 class TestPyIcebergUnsupportedType:

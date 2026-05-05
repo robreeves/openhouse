@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import math
 import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
@@ -346,8 +347,12 @@ def _literal_to_sql(value: object) -> str:
         lit = exp.Literal.string(value.strftime("%H:%M:%S.%f"))
         return exp.Cast(this=lit, to=exp.DataType.build("TIME")).sql()
     if isinstance(value, (int, float)):
+        if isinstance(value, float) and not math.isfinite(value):
+            return exp.Cast(this=exp.Literal.string(str(value)), to=exp.DataType.build("DOUBLE")).sql()
         return exp.Literal.number(value).sql()
     if isinstance(value, Decimal):
+        if not value.is_finite():
+            return exp.Cast(this=exp.Literal.string(str(value)), to=exp.DataType.build("DOUBLE")).sql()
         return exp.Literal.number(value).sql()
     if isinstance(value, UUID):
         return exp.Literal.string(str(value)).sql()

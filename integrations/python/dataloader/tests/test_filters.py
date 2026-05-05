@@ -1,3 +1,4 @@
+import math
 from datetime import UTC, date, datetime, time, timedelta, timezone
 from decimal import Decimal
 from uuid import UUID
@@ -422,6 +423,30 @@ class TestDataFusionLiteralConversion:
         result = _to_datafusion_sql(col("price").between(Decimal("10.00"), Decimal("50.00")))
         assert result == '"price" BETWEEN 10.00 AND 50.00'
 
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (float("nan"), "CAST('nan' AS DOUBLE)"),
+            (float("inf"), "CAST('inf' AS DOUBLE)"),
+            (float("-inf"), "CAST('-inf' AS DOUBLE)"),
+        ],
+    )
+    def test_non_finite_float(self, value, expected):
+        result = _to_datafusion_sql(col("x") == value)
+        assert result == f'"x" = {expected}'
+
+    @pytest.mark.parametrize(
+        ("value", "expected"),
+        [
+            (Decimal("NaN"), "CAST('NaN' AS DOUBLE)"),
+            (Decimal("Inf"), "CAST('Infinity' AS DOUBLE)"),
+            (Decimal("-Inf"), "CAST('-Infinity' AS DOUBLE)"),
+        ],
+    )
+    def test_non_finite_decimal(self, value, expected):
+        result = _to_datafusion_sql(col("x") == value)
+        assert result == f'"x" = {expected}'
+
     def test_uuid_equal(self):
         u = UUID("12345678-1234-5678-1234-567812345678")
         result = _to_datafusion_sql(col("id") == u)
@@ -517,6 +542,31 @@ class TestDataFusionFilterExecution:
         assert table.num_rows == 2
         price_values = [v.as_py() for v in table.column("price")]
         assert price_values == [Decimal("49.99"), Decimal("99.99")]
+
+    @pytest.mark.parametrize(
+        ("value", "expected_count", "check"),
+        [
+            (float("nan"), 1, lambda v: math.isnan(v)),
+            (float("inf"), 1, lambda v: v == float("inf")),
+            (float("-inf"), 1, lambda v: v == float("-inf")),
+            (Decimal("NaN"), 1, lambda v: math.isnan(v)),
+            (Decimal("Inf"), 1, lambda v: v == float("inf")),
+            (Decimal("-Inf"), 1, lambda v: v == float("-inf")),
+        ],
+    )
+    def test_non_finite_filter(self, value, expected_count, check):
+        import datafusion
+        import pyarrow as pa
+
+        ctx = datafusion.SessionContext()
+        batch = pa.record_batch({"x": pa.array([1.0, float("nan"), float("inf"), float("-inf"), 5.0])})
+        ctx.register_record_batches("t", [[batch]])
+
+        where = _to_datafusion_sql(col("x") == value)
+        batches = ctx.sql(f'SELECT * FROM "t" WHERE {where}').collect()
+        table = pa.Table.from_batches(batches)
+        assert table.num_rows == expected_count
+        assert check(table.column("x")[0].as_py())
 
     def test_high_precision_decimal_filter(self, ctx):
         where = _to_datafusion_sql(col("price") > Decimal("49.9899999999999999"))

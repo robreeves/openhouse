@@ -518,6 +518,12 @@ class TestDataFusionFilterExecution:
         price_values = [v.as_py() for v in table.column("price")]
         assert price_values == [Decimal("49.99"), Decimal("99.99")]
 
+    def test_high_precision_decimal_filter(self, ctx):
+        where = _to_datafusion_sql(col("price") > Decimal("49.9899999999999999"))
+        table = self._query(ctx, where)
+        assert table.num_rows == 1
+        assert table.column("price")[0].as_py() == Decimal("99.99")
+
     def test_uuid_filter(self, ctx):
         where = _to_datafusion_sql(col("id") == UUID("aaaaaaaa-bbbb-cccc-dddd-eeeeeeeeeeee"))
         table = self._query(ctx, where)

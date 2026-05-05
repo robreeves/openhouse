@@ -3,7 +3,7 @@ from __future__ import annotations
 import typing
 from abc import ABC, abstractmethod
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import UTC, date, datetime, time
 from decimal import Decimal
 from typing import Any
 from uuid import UUID
@@ -337,6 +337,12 @@ def _literal_to_sql(value: object) -> str:
         lit = exp.Literal.string(value.isoformat())
         return exp.Cast(this=lit, to=exp.DataType.build("DATE")).sql()
     if isinstance(value, time):
+        # DataFusion does not support TIME WITH TIME ZONE (TIMETZ), so
+        # tz-aware values are converted to UTC before formatting.
+        if value.tzinfo is not None:
+            # Python can only convert timezones on a full datetime, so combine
+            # with an arbitrary date, convert to UTC, then extract the time back.
+            value = datetime.combine(date(2000, 1, 1), value).astimezone(UTC).time()
         lit = exp.Literal.string(value.strftime("%H:%M:%S.%f"))
         return exp.Cast(this=lit, to=exp.DataType.build("TIME")).sql()
     if isinstance(value, (int, float)):

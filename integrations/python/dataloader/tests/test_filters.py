@@ -409,10 +409,10 @@ class TestDataFusionLiteralConversion:
         result = _to_datafusion_sql(col("event_time") == t)
         assert result == "\"event_time\" = CAST('14:30:00.500000' AS TIME)"
 
-    def test_time_with_timezone_converted_to_utc(self):
+    def test_time_with_timezone_rejected(self):
         t = time(14, 30, 0, tzinfo=timezone(timedelta(hours=5)))
-        result = _to_datafusion_sql(col("event_time") == t)
-        assert result == "\"event_time\" = CAST('09:30:00.000000' AS TIME)"
+        with pytest.raises(TypeError, match="does not support timezones for time"):
+            _to_datafusion_sql(col("event_time") == t)
 
     def test_decimal_greater_than(self):
         d = Decimal("99.95")
@@ -527,14 +527,6 @@ class TestDataFusionFilterExecution:
         table = self._query(ctx, where)
         assert table.num_rows == 1
         assert table.column("t")[0].as_py() == time(14, 30, 0)
-
-    def test_time_filter_with_timezone(self, ctx):
-        # 14:30:00+04:30 is 10:00:00 UTC — should match row 1, not row 2
-        t = time(14, 30, 0, tzinfo=timezone(timedelta(hours=4, minutes=30)))
-        where = _to_datafusion_sql(col("t") == t)
-        table = self._query(ctx, where)
-        assert table.num_rows == 1
-        assert table.column("t")[0].as_py() == time(10, 0, 0)
 
     def test_decimal_filter(self, ctx):
         where = _to_datafusion_sql(col("price") > Decimal("10.00"))

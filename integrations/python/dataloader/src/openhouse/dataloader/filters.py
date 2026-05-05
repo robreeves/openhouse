@@ -331,13 +331,13 @@ def _literal_to_sql(value: object) -> str:
     if isinstance(value, bool):
         return exp.Boolean(this=True).sql() if value else exp.Boolean(this=False).sql()
     if isinstance(value, datetime):
-        lit = exp.Literal.string(value.strftime("%Y-%m-%d %H:%M:%S%z"))
+        lit = exp.Literal.string(value.strftime("%Y-%m-%d %H:%M:%S.%f%z"))
         return exp.Cast(this=lit, to=exp.DataType.build("TIMESTAMP")).sql()
     if isinstance(value, date):
         lit = exp.Literal.string(value.isoformat())
         return exp.Cast(this=lit, to=exp.DataType.build("DATE")).sql()
     if isinstance(value, time):
-        lit = exp.Literal.string(value.strftime("%H:%M:%S"))
+        lit = exp.Literal.string(value.strftime("%H:%M:%S.%f"))
         return exp.Cast(this=lit, to=exp.DataType.build("TIME")).sql()
     if isinstance(value, (int, float)):
         return exp.Literal.number(value).sql()

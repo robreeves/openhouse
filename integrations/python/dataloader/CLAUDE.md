@@ -100,7 +100,7 @@ Build row filters using `col()` with comparison operators (`==`, `!=`, `>`, `>=`
 
 - Uses `ruff` for linting and formatting, `mypy` for type checking
 - Line length: 120
-- Python 3.12+
+- Python 3.10+
 - Use modern type hints (`list`, `dict`, `X | None` instead of `List`, `Dict`, `Optional`)
 - Use `pass` for abstract methods decorated with `@abstractmethod`
 - Use `raise NotImplementedError` for unsupported operations in concrete classes

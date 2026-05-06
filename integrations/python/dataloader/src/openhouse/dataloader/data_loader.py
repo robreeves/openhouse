@@ -42,7 +42,7 @@ def _is_transient(exc: BaseException) -> bool:
     return isinstance(exc, OSError)
 
 
-_T = TypeVar("_T")
+_T = TypeVar("_T")  # lets the type checker infer that _retry / _batched return the same type their callable / iterable yields
 
 
 def _batched(iterable: Iterable[_T], n: int) -> Iterator[tuple[_T, ...]]:

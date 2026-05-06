@@ -113,6 +113,10 @@ Build row filters using `col()` with comparison operators (`==`, `!=`, `>`, `>=`
 - CI sets `SETUPTOOLS_SCM_PRETEND_VERSION` to inject the monorepo semVer tag at build time
 - For local builds, use `SETUPTOOLS_SCM_PRETEND_VERSION=x.y.z make build` to override
 
+## Pull Requests
+
+When creating a PR, always use the repo's PR template at `.github/pull_request_template.md`. Fill in details for each section but keep all unchecked boxes — do not remove them.
+
 ## Architecture Notes
 
 - **OpenHouseDataLoader** iterates over `DataLoaderSplit` objects (one per Iceberg file scan task). Each split is independently callable and pickle-safe for distributed frameworks.
